@@ -7,6 +7,7 @@ import matlab.engine
 import shutil
 import os
 import glob
+import smtplib, ssl
 
 os.chdir(r'/Users/hritikraj/Desktop/Railtec')
 reqFiletdms = glob.glob('*.tdms')
@@ -14,36 +15,21 @@ tdms_file = td.read('/Users/hritikraj/Desktop/Railtec/' + reqFiletdms[0])
 num_groups = len(tdms_file.groups())
 group = tdms_file['FTA_CTA_Train']
 
-print(group["Sys2"].read_data(scaled=True))
+# print(group["Sys2"].read_data(scaled=True))
 # for item in group:
 #     print(group[item].read_data(scaled=True))         // need this part
 
 time = tdms_file['FTA_CTA_Train']["TriggerSys1"].properties["wf_start_time"]
 t = time.astype(datetime.datetime)
 
-# if num_groups == 1:
-#     f = open('/Users/hritikraj/Desktop/Railtec/FTA_CTA' + t.strftime("%Y%m%d%H%M%S") + '.txt', 'a+')
-#     i = 0
-#     for item in group:
-#         i += 1
-#         if i < 2:
-#             f.write(str(group[item]) + '\n')
-#             f.write(str(group[item].read_data(scaled=True)) + '\n')
-#     f.close()
-
-# f = open('/Users/hritikraj/Desktop/Railtec/FTA_CTA' + t.strftime("%Y%m%d%H%M%S") + '.txt', 'a+')
-# x = (group["Sys2"].read_data(scaled=True))
-# for i in range (0, len(group["Sys2"].read_data(scaled=True))):
-#     print(str(x[i]) + '\n')
         
-df = group.as_dataframe(time_index = False, absolute_time = True, scaled_data = False)
+# df = group.as_dataframe(time_index = False, absolute_time = True, scaled_data = False)
 
-with open('/Users/hritikraj/Desktop/Railtec/FTA_CTA' + t.strftime("%Y%m%d%H%M%S") + '.txt', 'a+') as f:
-    f.write(
-        df.to_string(header = True, index = False)
-    )
+# with open('/Users/hritikraj/Desktop/Railtec/FTA_CTA' + t.strftime("%Y%m%d%H%M%S") + '.txt', 'a+') as f:
+#     f.write(
+#         df.to_string(header = True, index = False)
+#     )
 
-# excel = group.as_dataframe(time_index = False, absolute_time = True, scaled_data = False)
 
 # if num_groups == 1:
 #     start_date_time = time
@@ -83,7 +69,20 @@ for f in reqFiletxt:
 
 # Send automated email
 
+port = 465  # For SSL
+smtp_server = "smtp.gmail.com"
+sender_email = "testytesty12321@gmail.com"  # Enter your address
+receiver_email = "hritik99@gmail.com"  # Enter receiver address
+password = "Skyrimrox1234"
+message = """\
+Subject: Hi there
 
+This message is sent from Python."""
+
+context = ssl.create_default_context()
+with smtplib.SMTP_SSL(smtp_server, port, context=context) as server:
+    server.login(sender_email, password)
+    server.sendmail(sender_email, receiver_email, message)
 
 
 
