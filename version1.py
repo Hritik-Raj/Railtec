@@ -17,6 +17,10 @@ from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from email.mime.base import MIMEBase
+from dotenv import load_dotenv
+import boto3
+from botocore.exceptions import NoCredentialsError
+import psycopg2
 
 
 def tdmsTransform(directory, filePath):
@@ -72,12 +76,46 @@ def moveText(source, destination):
         shutil.move(sourceFile, destination)
     return currentFile
 
-def moveCSV(source, destination):
-    reqFiletxt = glob.glob('*csv')
-    for f in reqFiletxt:
-        sourceFile = os.path.join(source, f)
-        print( "Moving " + sourceFile + " to " + destination)
-        shutil.move(sourceFile, destination)
+
+# def uploadCSV(source, bucket_normal, s3_name, ACCESS_KEY, SECRET_KEY):
+#     reqFiletxt = glob.glob('*csv')
+#     s3 = boto3.client('s3', aws_access_key_id=ACCESS_KEY,
+#                       aws_secret_access_key=SECRET_KEY)
+#     for fileName in reqFiletxt:
+#         sourceFile = os.path.join(source, fileName)
+#         # print( "Moving " + sourceFile + " to " + destination)
+#         # shutil.move(sourceFile, destination)
+#         try:
+#             s3.upload_file(sourceFile, bucket_normal, fileName)
+#             print("Upload Successful")
+#             return True
+#         except FileNotFoundError:
+#             print("The file was not found")
+#             return False
+#         except NoCredentialsError:
+#             print("Credentials not available")
+#             return False
+
+
+# def uploadCSVfilter(source,  bucket_filter, s3_name, ACCESS_KEY, SECRET_KEY):
+#     s3 = boto3.client('s3', aws_access_key_id=ACCESS_KEY,
+#                       aws_secret_access_key=SECRET_KEY)
+#     reqFilefilter = glob.glob('filter*.csv')
+#     for fileName in reqFilefilter:
+#         sourceFile = os.path.join(source, fileName)
+#         try:
+#             s3.upload_file(sourceFile, bucket_filter, fileName)
+#             print("Upload Filter Successful")
+#             return True
+#         except FileNotFoundError:
+#             print("The file was not found")
+#             return False
+#         except NoCredentialsError:
+#             print("Credentials not available")
+#             return False
+
+
+
 
 def mime_init(from_addr, recipients_addr, subject, body):
     """
@@ -144,45 +182,6 @@ def sendEmail(from_addr, password, recipients_addr, subject, body, files_path=No
 
     server.quit()
 
-# Send automated email
-
-# def sendEmail(sender_email, receiver_email, password):
-    # port = 465  # For SSL
-    # smtp_server = "smtp.gmail.com"
-    # message = """\
-    # Subject: Hi there
-
-    # Anomaly detected in train."""
-
-    # context = ssl.create_default_context()
-    # with smtplib.SMTP_SSL(smtp_server, port, context=context) as server:
-    #     server.login(sender_email, password)
-    #     server.sendmail(sender_email, receiver_email, message)
-
-
-
-    # dir_path = "G:/test_runners/selenium_regression_test_5_1_1/TestReport"
-    # files = ["SeleniumTestReport_part1.html", "SeleniumTestReport_part2.html", "SeleniumTestReport_part3.html"]
-
-    # msg = MIMEMultipart()
-    # msg['To'] = "4_server_dev@company.com"
-    # msg['From'] = "system@company.com"
-    # msg['Subject'] = "Selenium ClearCore_Regression_Test_Report_Result"
-
-    # body = MIMEText('Test results attached.', 'html', 'utf-8')  
-    # msg.attach(body)  # add message body (text or html)
-
-    # for f in files:  # add files to the message
-    #     file_path = os.path.join(dir_path, f)
-    #     attachment = MIMEApplication(open(file_path, "rb").read(), _subtype="txt")
-    #     attachment.add_header('Content-Disposition','attachment', filename=f)
-    #     msg.attach(attachment)
-
-    # s = smtplib.SMTP()
-    # s.connect(host=SMTP_SERVER)
-    # s.sendmail(msg['From'], msg['To'], msg.as_string())
-    # print 'done!'
-    # s.close()
 def findFig(source):
     reqFiletxt = glob.glob('*fig')
     retArr = []
@@ -227,10 +226,57 @@ def moveFilterCSV(source, destination):
         print( "Moving " + sourceFile + " to " + destination)
         shutil.move(sourceFile, destination)
 
-# def timelogger():
+def moveCSV(source, destination):
+    reqFiletxt = glob.glob('*csv')
+    for f in reqFiletxt:
+        sourceFile = os.path.join(source, f)
+        print( "Moving " + sourceFile + " to " + destination)
+        shutil.move(sourceFile, destination)
     
+def createTable(tableName):
+    cursor.execute("CREATE TABLE " + tableName + """(
+    trainNumber integer,
+    trainDate text,
+    trainSpeed float,
+    trainAxle integer,
+    V1_pks float,
+    V2_pks float,
+    L1_pks float,
+    L2_pks float)""")
 
-  
+def createFilterTable(tableName):
+    cursor.execute("CREATE TABLE " + tableName + """(
+    a float,
+    b float,
+    c float,
+    d float,
+    e float,
+    f float,
+    g float,
+    h float)""")
+
+
+def uploadFilterCSV(source):
+    reqFilefilter = glob.glob('filter*.csv')
+    for fileName in reqFilefilter:
+        sourceFile = os.path.join(source, fileName)
+        createFilterTable(fileName[:len(fileName) - 4])
+        with open(sourceFile, 'r') as row:
+            cursor.copy_from(row, fileName[:len(fileName) - 4], sep=',')
+
+
+        
+def uploadCSV(source):
+    reqFile = glob.glob('*.csv')
+    for fileName in reqFile:
+        sourceFile = os.path.join(source, fileName)
+        createTable('raw' + fileName[:len(fileName) - 4])
+        with open(sourceFile, 'r') as row:
+            next(row)
+            cursor.copy_from(row, 'raw' + fileName[:len(fileName) - 4], sep=',', null='')
+        connection.commit()
+
+    
   
 class Handler(watchdog.events.PatternMatchingEventHandler): 
     def __init__(self): 
@@ -242,25 +288,51 @@ class Handler(watchdog.events.PatternMatchingEventHandler):
         print("Watchdog received created event - % s." % event.src_path) 
         # Event is created, you can process it now 
         tdmsTransform('/Users/hritikraj/Desktop/Railtec/', '/Users/hritikraj/Desktop/Railtec/FTA_CTA')
-        #sleep
         moveTDMS('/Users/hritikraj/Desktop/Railtec', '/Users/hritikraj/Desktop/Railtec/ProcessedTDMSFiles')
-        #sleep
         matlabCall(r'/Users/hritikraj/Desktop/Railtec')
-        #sleep
         name = moveText('/Users/hritikraj/Desktop/Railtec', '/Users/hritikraj/Desktop/Railtec/ProcessedTextFiles') 
-        # processFilterCSV()
-        moveFilterCSV('/Users/hritikraj/Desktop/Railtec', '/Users/hritikraj/Dropbox/Apps/RailTEC/TextFiles')  
+          
+        # uploadedCSVfiler = uploadCSVfilter('/Users/hritikraj/Desktop/Railtec', 'railcsvfilter', '', AWS_ID, AWS_PWD)
+        
+        # if uploadedCSVfiler:
+        #     print("Filtered data successfully uploaded to AWS")
+
+        uploadFilterCSV('/Users/hritikraj/Desktop/Railtec')
+        moveFilterCSV('/Users/hritikraj/Desktop/Railtec', '/Users/hritikraj/Desktop/Railtec/ProcessedCSVfilter')
         processCSV(name)
-        moveCSV('/Users/hritikraj/Desktop/Railtec', '/Users/hritikraj/Dropbox/Apps/RailTEC/TextFiles')
-        # sendEmail("testytesty12321@gmail.com", "hritik99@gmail.com", "Skyrimrox1234")
+        uploadCSV('/Users/hritikraj/Desktop/Railtec')
+        moveCSV('/Users/hritikraj/Desktop/Railtec', '/Users/hritikraj/Desktop/Railtec/ProcessedCSV')
+
+
+
+        # uploadedCSV = uploadCSV('/Users/hritikraj/Desktop/Railtec', 'railcsv', '', AWS_ID, AWS_PWD)
+        
+        # if uploadedCSV:
+        #     print("Upload to AWS successful")
 
     def on_modified(self, event): 
         print("Watchdog received modified event - % s." % event.src_path) 
         # Event is modified, you can process it now 
-  
-  
+
+
+
+
 if __name__ == "__main__": 
     src_path = r'/Users/hritikraj/Desktop/Railtec'
+    load_dotenv()
+    AWS_ID = os.getenv('AWSAccessKeyId')
+    AWS_PWD = os.getenv('AWSSecretKey')
+
+
+    connection = psycopg2.connect(
+    host = os.getenv('AWSDBEndpoint'),
+    port = 5432,
+    user = os.getenv('AWSUserName'),
+    password = os.getenv('AWSDBPassword'),
+    database=os.getenv('AWSDatabaseName')
+    )
+    cursor=connection.cursor()
+
     event_handler = Handler() 
     observer = watchdog.observers.Observer() 
     observer.schedule(event_handler, path=src_path, recursive=True) 
