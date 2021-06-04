@@ -21,6 +21,45 @@ from dotenv import load_dotenv
 import boto3
 from botocore.exceptions import NoCredentialsError
 import psycopg2
+from google.transit import gtfs_realtime_pb2
+import requests
+import json
+from geopy import distance
+
+
+
+# function to detect train within geo fence everytime an event is logged in local folder. Makes API call in a loop
+
+def gtfsAPI():
+    feed = gtfs_realtime_pb2.FeedMessage()
+    response = requests.get('https://gtfsapi.metrarail.com/gtfs/positions', auth=(GTFSAccess, GTFSPassword), allow_redirects = True)
+    arrayCoord = []
+    jsonValue = response.json()
+    for item in jsonValue:
+        arrayCoord.append(tuple(item['vehicle']['position']['latitude'], item['vehicle']['position']['longitude']))
+    
+    retval = trainNumber(arrayCoord)
+    if retval == -1:
+        return tuple(-1, -1, -1)
+    else:
+        trainId = jsonValue[retval]['id']
+        tripId = jsonValue[retval]['vehicle']['trip']['trip_id']
+        routeId = jsonValue[retval]['vehicle']['trip']['route_id']
+        return tuple(trainId, tripId, routeId)
+
+def trainNumber(arrayCoord):
+    center_point = [{'lat': -7.7940023, 'lng': 110.3656535}]
+    radius = 0.46 # in kilometer
+
+    center_point_tuple = tuple(center_point[0].values()) # (-7.7940023, 110.3656535)
+    for i, item in enumerate(arrayCoord):
+        dis = distance.distance(center_point_tuple, item).km
+        print("Distance: {}".format(dis)) # Distance: 0.0628380925748918
+
+        if dis <= radius:
+            return i
+    return -1
+
 
 
 def tdmsTransform(directory, filePath):
@@ -190,8 +229,11 @@ def findFig(source):
         retArr.append(sourceFile)
     return retArr
 
-def analyzePeaks(V1_peaks, V2_peaks, name):
-    body = " To whomsever this may concern, the following anomalies have been detected in the train that passed by the sensor at " + name + "\n"
+def analyzePeaks(V1_peaks, V2_peaks, name, trainDetails):
+    if trainDetails[0] != -1 and trainDetails[1] != -1 and trainDetails[2] != -1:
+        body = " To whomsever this may concern, the following anomalies have been detected in Train ID :" + str(trainDetails[0]) + "\n" + "Trip ID :" + str(trainDetails[1]) + "\n" + "Route ID :" + str(trainDetails[2]) + "\n" + " which passed by the sensor at " + name + "\n"
+    else:
+        body = " To whomsever this may concern, the following anomalies have been detected in the train that passed by the sensor at " + name + "\n"
     for i in range(len(V1_peaks)):
         if V1_peaks[i] >= 12:
             body += "Anomaly " + str(i) +  ":" + str(V1_peaks[i]) + "\n"
@@ -201,17 +243,17 @@ def analyzePeaks(V1_peaks, V2_peaks, name):
     sendEmail("testytesty12321@gmail.com", "Skyrimrox1234", ["hritik99@gmail.com", "shivangi.sharma9536@gmail.com"], "Warning Email", body, files_path)
 
 
-def scanDF(df, name):
+def scanDF(df, name, trainDetails):
     V1_peaks = df.loc[:, "V1_pks"].values
     V2_peaks = df.loc[:, "V2_pks"].values
-    analyzePeaks(V1_peaks, V2_peaks, name)
+    analyzePeaks(V1_peaks, V2_peaks, name, trainDetails)
 
 
-def processCSV(name):
+def processCSV(name, trainDetails):
     filenames = glob.glob('*csv')
     for f in filenames:
         df = pd.read_csv(f)
-        scanDF(df, name)
+        scanDF(df, name, trainDetails)
 
 # def processFilterCSV():
 #     filenames = glob.glob('*csv')
@@ -286,6 +328,7 @@ class Handler(watchdog.events.PatternMatchingEventHandler):
   
     def on_created(self, event): 
         print("Watchdog received created event - % s." % event.src_path) 
+        trainDetails = gtfsAPI()
         # Event is created, you can process it now 
         tdmsTransform('/Users/hritikraj/Desktop/Railtec/', '/Users/hritikraj/Desktop/Railtec/FTA_CTA')
         moveTDMS('/Users/hritikraj/Desktop/Railtec', '/Users/hritikraj/Desktop/Railtec/ProcessedTDMSFiles')
@@ -299,7 +342,7 @@ class Handler(watchdog.events.PatternMatchingEventHandler):
 
         uploadFilterCSV('/Users/hritikraj/Desktop/Railtec')
         moveFilterCSV('/Users/hritikraj/Desktop/Railtec', '/Users/hritikraj/Desktop/Railtec/ProcessedCSVfilter')
-        processCSV(name)
+        processCSV(name, trainDetails)
         uploadCSV('/Users/hritikraj/Desktop/Railtec')
         moveCSV('/Users/hritikraj/Desktop/Railtec', '/Users/hritikraj/Desktop/Railtec/ProcessedCSV')
 
@@ -322,6 +365,8 @@ if __name__ == "__main__":
     load_dotenv()
     AWS_ID = os.getenv('AWSAccessKeyId')
     AWS_PWD = os.getenv('AWSSecretKey')
+    GTFSAccess = os.getenv('GTFSAccessKey')
+    GTFSPassword = os.getenv('GTFSSecretKey')
 
 
     connection = psycopg2.connect(
