@@ -48,13 +48,12 @@ def gtfsAPI():
         return tuple(trainId, tripId, routeId)
 
 def trainNumber(arrayCoord):
-    center_point = [{'lat': -7.7940023, 'lng': 110.3656535}]
     radius = 0.46 # in kilometer
 
-    center_point_tuple = tuple(center_point[0].values()) # (-7.7940023, 110.3656535)
+    center_point = tuple(ReqLat, ReqLon) 
     for i, item in enumerate(arrayCoord):
-        dis = distance.distance(center_point_tuple, item).km
-        print("Distance: {}".format(dis)) # Distance: 0.0628380925748918
+        dis = distance.distance(center_point, item).km
+        print("Distance: {}".format(dis)) 
 
         if dis <= radius:
             return i
@@ -367,6 +366,8 @@ if __name__ == "__main__":
     AWS_PWD = os.getenv('AWSSecretKey')
     GTFSAccess = os.getenv('GTFSAccessKey')
     GTFSPassword = os.getenv('GTFSSecretKey')
+    ReqLat = os.getenv('ReqLatitude')
+    ReqLon = os.getenv('ReqLongitude')
 
 
     connection = psycopg2.connect(
