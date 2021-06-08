@@ -30,7 +30,7 @@ from geopy import distance
 
 # function to detect train within geo fence everytime an event is logged in local folder. Makes API call in a loop
 
-def gtfsAPI():
+def gtfsRealtime():
     feed = gtfs_realtime_pb2.FeedMessage()
     response = requests.get('https://gtfsapi.metrarail.com/gtfs/positions', auth=(GTFSAccess, GTFSPassword), allow_redirects = True)
     arrayCoord = []
@@ -47,6 +47,8 @@ def gtfsAPI():
         routeId = jsonValue[retval]['vehicle']['trip']['route_id']
         return tuple(trainId, tripId, routeId)
 
+
+
 def trainNumber(arrayCoord):
     radius = 0.46 # in kilometer
 
@@ -58,6 +60,28 @@ def trainNumber(arrayCoord):
         if dis <= radius:
             return i
     return -1
+
+
+def gtfsStatic():
+    feed = gtfs_realtime_pb2.FeedMessage()
+    response = requests.get('https://gtfsapi.metrarail.com/gtfs/schedule/stop_times', auth=('b151017b10dfce48512a08b35bbfcb6a', '8ae0578d3e27abb353eba5e39b24f746'), allow_redirects = True)
+    staticTimeArr = []  # need to delete this
+    jsonValue = response.json()
+
+    for item in jsonValue:
+        if item['stop_id'] == 'HICKORYCRK':
+            timeStr = item['arrival_time']
+            try:
+                timeObj = datetime.datetime.strptime(timeStr, '%H:%M:%S').time()
+                staticTimeArr.append(timeObj)
+            except ValueError:
+                timeStr = timeStr.replace("24", "00")
+                timeStr = timeStr.replace("25", "01")
+                timeStr = timeStr.replace("26", "02")
+                timeObj = datetime.datetime.strptime(timeStr, '%H:%M:%S').time()
+                staticTimeArr.append(timeObj)
+
+    staticTimeArr = list(set(staticTimeArr))
 
 
 
@@ -327,7 +351,7 @@ class Handler(watchdog.events.PatternMatchingEventHandler):
   
     def on_created(self, event): 
         print("Watchdog received created event - % s." % event.src_path) 
-        trainDetails = gtfsAPI()
+        trainDetails = gtfsRealtime()
         # Event is created, you can process it now 
         tdmsTransform('/Users/hritikraj/Desktop/Railtec/', '/Users/hritikraj/Desktop/Railtec/FTA_CTA')
         moveTDMS('/Users/hritikraj/Desktop/Railtec', '/Users/hritikraj/Desktop/Railtec/ProcessedTDMSFiles')
@@ -360,6 +384,7 @@ class Handler(watchdog.events.PatternMatchingEventHandler):
 
 
 if __name__ == "__main__": 
+    staticTimeArr = []
     src_path = r'/Users/hritikraj/Desktop/Railtec'
     load_dotenv()
     AWS_ID = os.getenv('AWSAccessKeyId')
