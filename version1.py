@@ -64,7 +64,7 @@ def trainNumber(arrayCoord):
 
 def gtfsStatic():
     feed = gtfs_realtime_pb2.FeedMessage()
-    response = requests.get('https://gtfsapi.metrarail.com/gtfs/schedule/stop_times', auth=('b151017b10dfce48512a08b35bbfcb6a', '8ae0578d3e27abb353eba5e39b24f746'), allow_redirects = True)
+    response = requests.get('https://gtfsapi.metrarail.com/gtfs/schedule/stop_times', auth=(GTFSAccess, GTFSPassword), allow_redirects = True)
     staticTimeArr = []  # need to delete this
     jsonValue = response.json()
 
